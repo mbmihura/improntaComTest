@@ -30,14 +30,17 @@ MongoClient.connect(url, function (err, db) {
       db.collection('FC_Cell_towers').findOne(params, function (err, item) {
         if (item) {
           res.json(item);
+        } else if (err) {
+          res.status(500);
+          res.json(err);
         } else {
           res.status(404);
-          var err = {
+          var errNotFound = {
             message: 'Cell not found for the given params',
             code: 4041,
             searchByParams: params,
           }
-          res.json(err);
+          res.json(errNotFound);
         }
       });
     } else {
@@ -49,27 +52,38 @@ MongoClient.connect(url, function (err, db) {
     var params = {
       latitude: parseFloat(req.query.latitude),
       longitude: parseFloat(req.query.longitude),
-      maximumDistance: req.query.maximumDistance ? parseInt(req.query.maximumDistance) : 10000,
+      maximumDistance: req.query.maximumDistance ? parseInt(req.query.maximumDistance) : null,
       limit: req.query.limit ? parseInt(req.query.limit) : DEFAULT_ENDPOINT_RETURN_LIMIT,
       skip: req.query.skip ? parseInt(req.query.skip) : 0
     }
     if (!isNaN(params.latitude) && !isNaN(params.longitude)) {
+      let filter = {
+        $geometry: {
+          type: "Point",
+          coordinates: [params.latitude, params.longitude]
+        }
+      };
+      if (params.maximumDistance) {
+        filter['$maxDistance'] = params.maximumDistance;
+      }
+      
+      db.collection('FC_Cell_towers').find({
+        "geometry": {
+          $nearSphere: filter
+        }
+      }).skip(params.skip).limit(params.limit).toArray(function (err, docs) {
+        if (docs) {
+          res.json(docs);
+          console.log('found:')
+          console.log(docs)
+        } else if (err) {
+          res.status(500);
+          res.json(err);
+          console.error(err);
+        }
+      });
       console.log('searching for cell near point:')
       console.log(params)
-      db.collection('FC_Cell_towers').find(
-          { 'geometry':
-            { $near :
-              { $geometry:
-                { type: "Point",  coordinates: [ params.latitude, params.longitude ] },
-                  $maxDistance: params.maximumDistance
-              }
-            }
-          }
-          ).skip(params.skip).limit(params.limit).toArray(function(err, docs) {
-            console.log('found:')
-            console.log(docs)
-            res.json(docs);
-          });
     } else {
       sendMissingParamsResponse(res, params);
     }
