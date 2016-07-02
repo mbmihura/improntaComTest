@@ -57,7 +57,7 @@ MongoClient.connect(url, function (err, db) {
       skip: req.query.skip ? parseInt(req.query.skip) : 0
     }
     if (!isNaN(params.latitude) && !isNaN(params.longitude)) {
-      let filter = {
+      var filter = {
         $geometry: {
           type: "Point",
           coordinates: [params.latitude, params.longitude]
